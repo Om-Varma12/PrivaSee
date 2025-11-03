@@ -1,0 +1,53 @@
+# ============================================================
+# PrivaSee - AI-Powered Phishing Detection
+# Python Dependencies
+# ============================================================
+
+# Core Web Framework
+Flask==3.0.0
+flask-cors==4.0.0
+Werkzeug==3.0.1
+
+# Machine Learning & Data Processing
+xgboost==2.0.3
+scikit-learn==1.3.2
+numpy==1.26.2
+pandas==2.1.4
+scipy==1.11.4
+
+# Model Serialization
+joblib==1.3.2
+
+# URL Parsing & Text Processing
+urllib3==2.1.0
+
+# Optional: For Model Training/Development
+# Uncomment if you need to train the model
+
+# Visualization (for training notebooks)
+# matplotlib==3.8.2
+# seaborn==0.13.0
+
+# Jupyter Notebook (for training)
+# jupyter==1.0.0
+# notebook==7.0.6
+
+# Additional utilities
+# requests==2.31.0  # For testing API endpoints
+
+# ============================================================
+# Installation Instructions:
+# ============================================================
+# 1. Create virtual environment (recommended):
+#    python -m venv venv
+#    source venv/bin/activate  # On Windows: venv\Scripts\activate
+#
+# 2. Install dependencies:
+#    pip install -r requirements.txt
+#
+# 3. Verify installation:
+#    python -c "import flask, xgboost, sklearn; print('✅ All packages installed')"
+# ============================================================
+
+# Note: Tested on Python 3.8, 3.9, 3.10, 3.11, 3.12
+# Recommended: Python 3.10+
