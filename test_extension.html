@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extension Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-link {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        .test-link:hover {
+            background: #0056b3;
+        }
+        .instructions {
+            background: #e7f3ff;
+            padding: 15px;
+            border-left: 4px solid #007bff;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 PrivaSee Extension Test Page</h1>
+    
+    <div class="instructions">
+        <h3>📋 Testing Instructions:</h3>
+        <ol>
+            <li>Make sure the PrivaSee extension is loaded and active</li>
+            <li>Click on the test links below to verify the extension works</li>
+            <li>Check that the extension detects URLs correctly for multiple sites</li>
+            <li>Verify that HTTPS sites show the correct protocol (🔒 HTTPS)</li>
+            <li>Test that the extension works for multiple navigations in the same tab</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>🔗 HTTPS Test Sites</h2>
+        <p>These should show "🔒 HTTPS (Encrypted)" in the extension:</p>
+        <a href="https://www.amazon.in" class="test-link">Amazon India (HTTPS)</a>
+        <a href="https://www.google.com" class="test-link">Google (HTTPS)</a>
+        <a href="https://www.github.com" class="test-link">GitHub (HTTPS)</a>
+        <a href="https://www.stackoverflow.com" class="test-link">Stack Overflow (HTTPS)</a>
+    </div>
+
+    <div class="test-section">
+        <h2>⚠️ HTTP Test Sites</h2>
+        <p>These should show "⚠️ HTTP (Not Encrypted)" in the extension:</p>
+        <a href="http://httpbin.org" class="test-link">HTTPBin (HTTP)</a>
+        <a href="http://example.com" class="test-link">Example.com (HTTP)</a>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 Multiple Navigation Test</h2>
+        <p>Click these links multiple times to test that the extension works for repeated navigations:</p>
+        <a href="https://www.amazon.in" class="test-link">Amazon (1st time)</a>
+        <a href="https://www.google.com" class="test-link">Google (2nd time)</a>
+        <a href="https://www.amazon.in" class="test-link">Amazon (3rd time)</a>
+        <a href="https://www.github.com" class="test-link">GitHub (4th time)</a>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Expected Results:</h2>
+        <ul>
+            <li>✅ Extension should intercept ALL navigation attempts</li>
+            <li>✅ HTTPS sites should show "🔒 HTTPS (Encrypted)"</li>
+            <li>✅ HTTP sites should show "⚠️ HTTP (Not Encrypted)"</li>
+            <li>✅ Extension should work for multiple navigations in the same tab</li>
+            <li>✅ No "This page does not use HTTPS protocol" error for HTTPS sites</li>
+        </ul>
+    </div>
+
+    <script>
+        // Add click tracking for testing
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('test-link')) {
+                console.log('🧪 Test link clicked:', e.target.href);
+            }
+        });
+    </script>
+</body>
+</html>
+

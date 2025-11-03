@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "PrivaSee",
+  "version": "1.0",
+  "description": "Shows website trackers and gives privacy score.",
+  "permissions": [
+    "tabs",
+    "notifications",
+    "webNavigation",
+    "scripting",
+    "cookies"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["confirm.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
