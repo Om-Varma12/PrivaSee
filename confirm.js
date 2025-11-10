@@ -6,11 +6,15 @@ let originalUrl = "";
 console.log("Raw data param:", dataParam);
 
 try {
-  siteData = JSON.parse(decodeURIComponent(dataParam));
+  const decodedData = decodeURIComponent(dataParam);
+  console.log("Decoded data:", decodedData);
+  
+  siteData = JSON.parse(decodedData);
   originalUrl = siteData.url;
   
   console.log("Parsed site data:", siteData);
   console.log("Original URL:", originalUrl);
+  console.log("Phishing data:", siteData.phishing);
   
   // Ensure we have the correct protocol from the original URL
   if (siteData.url) {
@@ -28,19 +32,51 @@ try {
   }
 } catch (e) {
   console.error("Error parsing site data:", e);
-  siteData = { hostname: "Unknown", url: "", protocol: "unknown:", phishing: { riskScore: 0 } };
+  console.error("Failed data:", dataParam);
+  siteData = { 
+    hostname: "Unknown", 
+    url: "", 
+    protocol: "unknown:", 
+    phishing: { riskScore: 0 } 
+  };
 }
 
-// Calculate overall risk level - handle both phishing and phishingScore
-const riskScore = siteData.phishing?.riskScore || siteData.phishing?.phishingScore || 0;
-console.log("Risk Score:", riskScore, "from phishing data:", siteData.phishing);
+// Calculate overall risk level - FIXED: Check all possible score locations
+let riskScore = 0;
+
+if (siteData.phishing) {
+  // Try different possible locations for the risk score
+  riskScore = siteData.phishing.riskScore || 
+              siteData.phishing.phishingScore || 
+              0;
+  
+  console.log("Raw phishing object:", JSON.stringify(siteData.phishing, null, 2));
+  console.log("Extracted risk score:", riskScore);
+  
+  // Additional debugging
+  if (riskScore === 0 && siteData.phishing) {
+    console.error("⚠️ Risk score is 0 but phishing object exists!");
+    console.error("Phishing keys:", Object.keys(siteData.phishing));
+    console.error("Full phishing object:", siteData.phishing);
+  }
+} else {
+  console.warn("No phishing data found in siteData");
+}
 
 let riskLevel = 'LOW';
 let riskColor = '#28a745';
 let riskIcon = '✓';
 let riskBgColor = '#28a74515';
 
-if (riskScore > 70) {
+// Check if this is a whitelisted/safe site
+const isWhitelisted = siteData.phishing?.source === 'whitelist';
+
+if (isWhitelisted) {
+  riskLevel = 'SAFE';
+  riskColor = '#28a745';
+  riskIcon = '✅';
+  riskBgColor = '#28a74520';
+} else if (riskScore > 70) {
   riskLevel = 'CRITICAL';
   riskColor = '#dc3545';
   riskIcon = '🚨';
@@ -57,6 +93,8 @@ if (riskScore > 70) {
   riskBgColor = '#ffc10715';
 }
 
+console.log("Final risk assessment:", { riskScore, riskLevel, riskColor });
+
 // Update header based on risk
 const container = document.querySelector('.container');
 const icon = document.querySelector('.icon');
@@ -69,7 +107,11 @@ if (riskScore > 50) {
   title.style.color = riskColor;
 }
 
-document.getElementById("site-name").innerText = siteData.hostname || "Unknown";
+// Update site name - FIXED: Better fallback chain
+const displayHostname = siteData.hostname || 
+                        (siteData.url ? new URL(siteData.url).hostname : "Unknown");
+document.getElementById("site-name").innerText = displayHostname;
+console.log("Displaying hostname:", displayHostname);
 
 // Add risk score display with dynamic styling
 const riskDisplay = document.createElement('div');
@@ -119,16 +161,29 @@ if (siteData.phishing) {
   const phishing = siteData.phishing;
   let phishingHTML = '';
   
-  console.log("Phishing data:", phishing);
+  console.log("Rendering phishing data:", phishing);
   
   // Show ML prediction if available
   if (phishing.prediction) {
-    phishingHTML += `<div class="data-item ${phishing.isPhishing ? 'danger' : 'safe'}">
+    const predictionClass = phishing.isPhishing ? 'danger' : 'safe';
+    phishingHTML += `<div class="data-item ${predictionClass}">
       <strong>ML Prediction:</strong> ${phishing.prediction.toUpperCase()}
       ${phishing.confidence ? ` (${phishing.confidence}% confidence)` : ''}
     </div>`;
   }
   
+  // Show detected terms if from quick check
+  if (phishing.detectedTerms && phishing.detectedTerms.length > 0) {
+    phishingHTML += '<div class="data-item danger"><strong>🚨 Phishing Terms Detected:</strong></div>';
+    phishing.detectedTerms.slice(0, 10).forEach(term => {
+      phishingHTML += `<div class="data-item danger">• ${term}</div>`;
+    });
+    if (phishing.detectedTerms.length > 10) {
+      phishingHTML += `<div class="empty-state">... and ${phishing.detectedTerms.length - 10} more terms</div>`;
+    }
+  }
+  
+  // Show warnings
   if (phishing.warnings && phishing.warnings.length > 0) {
     phishingHTML += '<div style="margin-bottom: 15px;">';
     phishing.warnings.forEach(warning => {
@@ -137,12 +192,13 @@ if (siteData.phishing) {
     phishingHTML += '</div>';
   }
   
+  // Show suspicious patterns
   if (phishing.suspiciousPatterns && phishing.suspiciousPatterns.length > 0) {
     phishingHTML += '<div class="data-item warning"><strong>⚠️ Suspicious Patterns Detected:</strong></div>';
     phishing.suspiciousPatterns.forEach(pattern => {
       phishingHTML += `<div class="data-item warning">${pattern}</div>`;
     });
-  } else if (phishing.warnings?.length === 0 || !phishing.warnings) {
+  } else if (riskScore < 30) {
     phishingHTML += '<div class="data-item safe">✓ No obvious phishing patterns detected</div>';
   }
   
@@ -162,11 +218,25 @@ if (siteData.phishing) {
   
   // Show analysis source
   if (phishing.source) {
-    const sourceLabel = phishing.source === 'flask-ml' ? 'Machine Learning Model' : 'Local Heuristic Analysis';
+    const sourceLabels = {
+      'flask-ml': 'Machine Learning Model',
+      'local-heuristic': 'Local Heuristic Analysis',
+      'quick-check': 'Quick Pattern Matching',
+      'error': 'Error During Analysis'
+    };
+    const sourceLabel = sourceLabels[phishing.source] || phishing.source;
     phishingHTML += `<div class="data-item"><small><em>Analysis by: ${sourceLabel}</em></small></div>`;
   }
   
+  if (!phishingHTML) {
+    phishingHTML = '<div class="data-item">No phishing analysis data available</div>';
+  }
+  
   dataContainer.appendChild(createCollapsibleSection('🛡️ Phishing Analysis', phishingHTML, true, riskScore > 30));
+} else {
+  console.warn("No phishing data to render");
+  const noPhishingData = '<div class="data-item warning">⚠️ Phishing analysis data not available</div>';
+  dataContainer.appendChild(createCollapsibleSection('🛡️ Phishing Analysis', noPhishingData, true, true));
 }
 
 // 2. SSL CERTIFICATE INFORMATION
@@ -211,10 +281,10 @@ if (siteData.certificate) {
     certHTML += `<div class="data-item"><strong>Key Exchange:</strong> ${cert.keyExchange}</div>`;
   }
   
-  dataContainer.appendChild(createCollapsibleSection('🔐 SSL Certificate', certHTML, !cert.valid, true));
+  dataContainer.appendChild(createCollapsibleSection('🔒 SSL Certificate', certHTML, !cert.valid, true));
 } else if (siteData.protocol === 'https:') {
   const noCertInfo = '<div class="data-item warning">⚠️ HTTPS detected but certificate details not available</div>';
-  dataContainer.appendChild(createCollapsibleSection('🔐 SSL Certificate', noCertInfo, true, true));
+  dataContainer.appendChild(createCollapsibleSection('🔒 SSL Certificate', noCertInfo, true, true));
 }
 
 // 3. DOMAIN INFORMATION
@@ -262,7 +332,7 @@ let urlHTML = `
     <small style="word-break: break-all;">${siteData.url}</small>
   </div>
   <div class="data-item">
-    <strong>Hostname:</strong> ${siteData.hostname}
+    <strong>Hostname:</strong> ${displayHostname}
   </div>
   <div class="data-item">
     <strong>Port:</strong> ${siteData.port}
