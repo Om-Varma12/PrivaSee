@@ -54,11 +54,11 @@ if (siteData.phishing) {
   console.log("Extracted risk score:", riskScore);
   
   // Additional debugging
-  if (riskScore === 0 && siteData.phishing) {
-    console.error("⚠️ Risk score is 0 but phishing object exists!");
-    console.error("Phishing keys:", Object.keys(siteData.phishing));
-    console.error("Full phishing object:", siteData.phishing);
-  }
+  // if (riskScore === 0 && siteData.phishing) {
+  //   console.error("⚠️ Risk score is 0 but phishing object exists!");
+  //   console.error("Phishing keys:", Object.keys(siteData.phishing));
+  //   console.error("Full phishing object:", siteData.phishing);
+  // }
 } else {
   console.warn("No phishing data found in siteData");
 }
