@@ -1,6 +1,6 @@
 // Store the original URLs for each tab
 const pendingNavigations = new Map();
-const allowedNavigations = new Set(); // Track approved navigations
+const allowedNavigations = new Set();
 
 // Flask API endpoint
 const FLASK_API_URL = 'http://localhost:5000/checkURL';
@@ -229,6 +229,101 @@ const PHISHING_TERMS = [
   'phish', 'fake-login', 'mirror-site', 'clone-site',
   'redirect-secure', 'auth-required', 'session-expired'
 ];
+
+// ⭐ NEW: List of safe/known IP addresses (local networks, routers, development)
+const SAFE_IP_ADDRESSES = [
+  '127.0.0.1',      // Localhost
+  'localhost',      // Localhost hostname
+  '0.0.0.0',        // All interfaces
+  '192.168.1.1',    // Common router IP
+  '192.168.0.1',    // Common router IP
+  '10.0.0.1',       // Common router IP
+];
+
+// ⭐ NEW: Function to check if hostname is an IP address
+function isIPAddress(hostname) {
+  // IPv4 pattern
+  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  
+  // IPv6 pattern (basic check)
+  const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+  
+  return ipv4Pattern.test(hostname) || ipv6Pattern.test(hostname);
+}
+
+// ⭐ NEW: Function to validate IP address range
+function isValidPublicIP(hostname) {
+  if (!isIPAddress(hostname)) return true; // Not an IP, so it's fine
+  
+  // Check if it's in the safe list
+  if (SAFE_IP_ADDRESSES.includes(hostname)) {
+    return true;
+  }
+  
+  // Check for private/local IP ranges
+  const parts = hostname.split('.');
+  if (parts.length === 4) {
+    const first = parseInt(parts[0]);
+    const second = parseInt(parts[1]);
+    
+    // Private IP ranges:
+    // 10.0.0.0 - 10.255.255.255
+    // 172.16.0.0 - 172.31.255.255
+    // 192.168.0.0 - 192.168.255.255
+    if (first === 10) return true;  // Local network
+    if (first === 172 && second >= 16 && second <= 31) return true;  // Local network
+    if (first === 192 && second === 168) return true;  // Local network
+    if (first === 169 && second === 254) return true;  // Link-local
+  }
+  
+  // Public IP address - CRITICAL RISK
+  return false;
+}
+
+// ⭐ NEW: Function to check for IP-based URLs (CRITICAL RISK)
+function checkIPBasedURL(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    
+    // Check if hostname is an IP address
+    if (isIPAddress(hostname)) {
+      console.log('🚨 IP ADDRESS DETECTED:', hostname);
+      
+      // Check if it's a safe/local IP
+      if (isValidPublicIP(hostname)) {
+        console.log('✅ Safe IP address (local/private network)');
+        return {
+          isIPBased: true,
+          isSafe: true,
+          ipAddress: hostname,
+          type: 'local'
+        };
+      } else {
+        console.log('🚨 PUBLIC IP ADDRESS - CRITICAL RISK!');
+        return {
+          isIPBased: true,
+          isSafe: false,
+          ipAddress: hostname,
+          type: 'public',
+          riskScore: 90  // Very high risk
+        };
+      }
+    }
+    
+    return {
+      isIPBased: false,
+      isSafe: true
+    };
+    
+  } catch (error) {
+    console.error('Error in IP check:', error);
+    return {
+      isIPBased: false,
+      isSafe: true
+    };
+  }
+}
 
 // Function to check if URL is in whitelist
 function checkWhitelist(url) {
@@ -481,7 +576,80 @@ async function analyzeSiteData(url) {
   };
 
   try {
-    // 🎯 STEP 0: Check whitelist first (highest priority)
+    // ⭐ STEP -1: Check for IP-based URLs FIRST (HIGHEST PRIORITY)
+    console.log('🔍 Checking for IP-based URL...');
+    const ipCheck = checkIPBasedURL(url);
+    
+    if (ipCheck.isIPBased && !ipCheck.isSafe) {
+      // PUBLIC IP ADDRESS - CRITICAL RISK
+      console.log('🚨 PUBLIC IP ADDRESS DETECTED - MARKING AS CRITICAL RISK');
+      
+      siteData.phishing = {
+        suspiciousPatterns: [
+          `Using public IP address: ${ipCheck.ipAddress}`,
+          'Legitimate websites use domain names, not IP addresses',
+          'IP-based URLs are commonly used for malware distribution',
+          'This could be a phishing, malware, or command & control server'
+        ],
+        riskScore: 90,
+        warnings: [
+          '🚨 CRITICAL: Website uses a public IP address instead of a domain name',
+          '🚨 Legitimate businesses NEVER use IP addresses for their websites',
+          '🚨 This is a strong indicator of malicious activity',
+          '⚠️ Your data and device security may be at severe risk'
+        ],
+        riskLevel: 'CRITICAL',
+        riskColor: '#dc3545',
+        prediction: 'suspicious',
+        isPhishing: true,
+        confidence: 90,
+        source: 'ip-detection',
+        ipInfo: {
+          detected: true,
+          address: ipCheck.ipAddress,
+          type: ipCheck.type,
+          isSafe: false
+        },
+        probabilities: {
+          phishing: 0.90,
+          legitimate: 0.10
+        }
+      };
+      
+      console.log('✅ IP-based phishing data:', siteData.phishing);
+      
+      // Still get cookies for transparency
+      const cookies = await chrome.cookies.getAll({ url: url });
+      siteData.cookies = cookies.map(c => ({
+        name: c.name,
+        domain: c.domain,
+        secure: c.secure,
+        httpOnly: c.httpOnly,
+        sameSite: c.sameSite,
+        path: c.path
+      }));
+
+      siteData.urlAnalysis = {
+        length: url.length,
+        hasIPAddress: true,
+        subdomainCount: 0,
+        hasPort: !!urlObj.port,
+        hasQueryParams: !!urlObj.search,
+        hasFragment: !!urlObj.hash,
+        hasAtSymbol: url.includes('@'),
+        hasDoubleSlash: url.indexOf('//', 8) > -1,
+        specialCharCount: (url.match(/[@\-?=%&#]/g) || []).length
+      };
+      
+      return siteData;
+    }
+    
+    // If it's a safe/local IP, continue with normal checks
+    if (ipCheck.isIPBased && ipCheck.isSafe) {
+      console.log('✅ Local/Private IP address - Safe for development');
+    }
+    
+    // 🎯 STEP 0: Check whitelist
     console.log('🔍 Checking whitelist...');
     const whitelistCheck = checkWhitelist(url);
     
@@ -593,29 +761,50 @@ async function analyzeSiteData(url) {
       if (flaskResponse && !flaskResponse.error) {
         console.log('✅ Using Flask ML analysis');
         
+        // ⭐ FIXED: Correct field mapping from Flask response
         siteData.phishing = {
           suspiciousPatterns: flaskResponse.patterns || [],
-          riskScore: flaskResponse.phishingScore || 0,
+          riskScore: flaskResponse.phishingScore || 0,  // Use phishingScore from Flask
           warnings: flaskResponse.warnings || [],
-          riskLevel: flaskResponse.riskLevel || 'unknown',
-          riskColor: flaskResponse.riskColor || 'gray',
+          riskLevel: (flaskResponse.riskLevel || 'UNKNOWN').toUpperCase(),  // Convert to uppercase
+          riskColor: flaskResponse.riskColor || '#gray',
           prediction: flaskResponse.prediction || 'unknown',
           isPhishing: flaskResponse.isPhishing || false,
           confidence: flaskResponse.confidence || 0,
           source: 'flask-ml',
-          probabilities: flaskResponse.probabilities || {}
+          probabilities: flaskResponse.probabilities || {},
+          flaskRawResponse: flaskResponse  // Keep raw response for debugging
         };
         
         console.log('✅ Mapped phishing data:', siteData.phishing);
+        console.log('📊 Risk Score extracted:', siteData.phishing.riskScore);
         
       } else {
         // Fallback to local heuristic analysis
         console.log('📊 Using local heuristic analysis (Flask unavailable)');
         const localAnalysis = analyzePhishingIndicators(url);
+        
+        // Calculate risk level from score
+        let riskLevel = 'LOW';
+        let riskColor = '#28a745';
+        
+        if (localAnalysis.riskScore >= 70) {
+          riskLevel = 'CRITICAL';
+          riskColor = '#dc3545';
+        } else if (localAnalysis.riskScore >= 50) {
+          riskLevel = 'HIGH';
+          riskColor = '#ff6b6b';
+        } else if (localAnalysis.riskScore >= 30) {
+          riskLevel = 'MEDIUM';
+          riskColor = '#ffc107';
+        }
+        
         siteData.phishing = {
           suspiciousPatterns: localAnalysis.suspiciousPatterns,
           riskScore: localAnalysis.riskScore,
           warnings: localAnalysis.warnings,
+          riskLevel: riskLevel,
+          riskColor: riskColor,
           source: 'local-heuristic'
         };
       }
@@ -659,6 +848,8 @@ async function analyzeSiteData(url) {
         suspiciousPatterns: [],
         riskScore: 0,
         warnings: ['Unable to analyze URL'],
+        riskLevel: 'UNKNOWN',
+        riskColor: '#gray',
         source: 'error'
       };
     }
@@ -675,7 +866,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
   if (details.frameId !== 0) return;
   
   if (!details.url.startsWith("http")) {
-    console.log("⭐️ Ignoring non-http URL:", details.url);
+    console.log("⭐ Ignoring non-http URL:", details.url);
     return;
   }
   
@@ -706,7 +897,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
     `confirm.html?data=${encodeURIComponent(JSON.stringify(siteData))}`
   );
   
-  console.log("🔄 Navigating to confirmation page");
+  console.log("📄 Navigating to confirmation page");
   chrome.tabs.update(details.tabId, { url: confirmPage });
   
   setTimeout(() => {
@@ -777,3 +968,4 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 console.log("🛡️ Phishing Protection Extension loaded");
 console.log(`✅ Whitelist: ${LEGITIMATE_DOMAINS.length} legitimate domains`);
 console.log(`🚨 Blacklist: ${PHISHING_TERMS.length} phishing terms`);
+console.log(`🔒 IP Protection: Public IP addresses will be flagged as CRITICAL RISK`);

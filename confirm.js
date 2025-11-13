@@ -52,13 +52,6 @@ if (siteData.phishing) {
   
   console.log("Raw phishing object:", JSON.stringify(siteData.phishing, null, 2));
   console.log("Extracted risk score:", riskScore);
-  
-  // Additional debugging
-  // if (riskScore === 0 && siteData.phishing) {
-  //   console.error("⚠️ Risk score is 0 but phishing object exists!");
-  //   console.error("Phishing keys:", Object.keys(siteData.phishing));
-  //   console.error("Full phishing object:", siteData.phishing);
-  // }
 } else {
   console.warn("No phishing data found in siteData");
 }
@@ -112,6 +105,216 @@ const displayHostname = siteData.hostname ||
                         (siteData.url ? new URL(siteData.url).hostname : "Unknown");
 document.getElementById("site-name").innerText = displayHostname;
 console.log("Displaying hostname:", displayHostname);
+
+// ============================================
+// 🆕 TRUST-BUILDING INDICATORS BANNER
+// ============================================
+function createTrustIndicatorsBanner() {
+  const indicators = [];
+  
+  // 1. New Website Detection
+  if (siteData.domainInfo && siteData.domainInfo.age !== undefined) {
+    const isNew = siteData.domainInfo.age < 180; // Less than 6 months
+    if (isNew) {
+      indicators.push({
+        icon: '🆕',
+        text: 'NEW WEBSITE DETECTED',
+        subtext: `Domain registered only ${Math.floor(siteData.domainInfo.age / 30)} months ago`,
+        color: '#ff9800',
+        severity: 'warning'
+      });
+    }
+  }
+  
+  // 2. IP Address Detection
+  if (siteData.phishing?.ipInfo?.detected) {
+    const ipInfo = siteData.phishing.ipInfo;
+    if (!ipInfo.isSafe) {
+      indicators.push({
+        icon: '🔴',
+        text: 'PUBLIC IP ADDRESS FOUND',
+        subtext: `Using IP ${ipInfo.address} instead of domain name`,
+        color: '#dc3545',
+        severity: 'critical'
+      });
+    }
+  } else if (siteData.urlAnalysis?.hasIPAddress) {
+    indicators.push({
+      icon: '🔴',
+      text: 'IP ADDRESS DETECTED',
+      subtext: 'Legitimate sites use domain names, not IP addresses',
+      color: '#dc3545',
+      severity: 'critical'
+    });
+  }
+  
+  // 3. Suspicious Keywords Detection
+  if (siteData.phishing?.detectedTerms && siteData.phishing.detectedTerms.length > 0) {
+    indicators.push({
+      icon: '🎣',
+      text: 'SUSPICIOUS KEYWORDS FOUND',
+      subtext: `${siteData.phishing.detectedTerms.length} phishing terms detected (${siteData.phishing.detectedTerms.slice(0, 2).join(', ')})`,
+      color: '#dc3545',
+      severity: 'critical'
+    });
+  }
+  
+  // 4. 🆕 No HTTPS Encryption
+  if (siteData.protocol !== 'https:') {
+    indicators.push({
+      icon: '🔓',
+      text: 'NOT ENCRYPTED',
+      subtext: 'This site does NOT use HTTPS - your data can be intercepted',
+      color: '#dc3545',
+      severity: 'critical'
+    });
+  }
+  
+  // 5. 🆕 Multiple Third-Party Trackers
+  if (siteData.thirdParty && siteData.thirdParty.length > 5) {
+    indicators.push({
+      icon: '📡',
+      text: 'MANY TRACKERS DETECTED',
+      subtext: `${siteData.thirdParty.length} third-party domains tracking your activity`,
+      color: '#ff9800',
+      severity: 'warning'
+    });
+  }
+  
+  // 6. 🆕 Excessive Subdomains
+  if (siteData.urlAnalysis?.subdomainCount > 3) {
+    indicators.push({
+      icon: '🔗',
+      text: 'COMPLEX URL STRUCTURE',
+      subtext: `${siteData.urlAnalysis.subdomainCount} subdomains detected (phishing technique)`,
+      color: '#ff9800',
+      severity: 'warning'
+    });
+  }
+  
+  // 7. 🆕 @ Symbol in URL
+  if (siteData.urlAnalysis?.hasAtSymbol) {
+    indicators.push({
+      icon: '🎭',
+      text: 'URL MANIPULATION DETECTED',
+      subtext: '@ symbol found - commonly used to hide real domain',
+      color: '#dc3545',
+      severity: 'critical'
+    });
+  }
+  
+  // 8. 🆕 Unusual Port Number
+  if (siteData.port && siteData.port !== '443' && siteData.port !== '80') {
+    indicators.push({
+      icon: '🚪',
+      text: 'NON-STANDARD PORT',
+      subtext: `Port ${siteData.port} - legitimate sites use port 443 (HTTPS) or 80 (HTTP)`,
+      color: '#ff9800',
+      severity: 'warning'
+    });
+  }
+  
+  // 9. 🆕 ML Model High Confidence
+  if (siteData.phishing?.isPhishing && siteData.phishing?.confidence >= 85) {
+    indicators.push({
+      icon: '🤖',
+      text: 'AI MODEL HIGH CONFIDENCE',
+      subtext: `Machine learning model is ${siteData.phishing.confidence}% confident this is phishing`,
+      color: '#dc3545',
+      severity: 'critical'
+    });
+  }
+  
+  // 10. Whitelisted/Safe Site Indicator
+  if (isWhitelisted) {
+    indicators.push({
+      icon: '✅',
+      text: 'VERIFIED LEGITIMATE WEBSITE',
+      subtext: `${siteData.phishing.whitelistInfo.matchedDomain} is on our trusted whitelist`,
+      color: '#28a745',
+      severity: 'safe'
+    });
+  }
+  
+  // Only show banner if there are indicators
+  if (indicators.length === 0) return;
+  
+  const bannerHTML = `
+    <div style="
+      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+      border: 2px solid ${indicators[0].color};
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    ">
+      <div style="
+        font-size: 14px;
+        font-weight: 600;
+        color: #667eea;
+        margin-bottom: 15px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      ">
+        🛡️ PrivaSee Security Analysis
+      </div>
+      
+      <div style="display: grid; gap: 12px;">
+        ${indicators.map(indicator => `
+          <div style="
+            background: white;
+            border-left: 4px solid ${indicator.color};
+            padding: 12px 15px;
+            border-radius: 6px;
+            display: flex;
+            align-items: start;
+            gap: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+          ">
+            <div style="font-size: 24px; line-height: 1;">${indicator.icon}</div>
+            <div style="flex: 1;">
+              <div style="
+                font-weight: 600;
+                color: ${indicator.color};
+                font-size: 13px;
+                margin-bottom: 4px;
+              ">${indicator.text}</div>
+              <div style="
+                font-size: 12px;
+                color: #666;
+                line-height: 1.4;
+              ">${indicator.subtext}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      
+      ${indicators.filter(i => i.severity === 'critical').length > 0 ? `
+        <div style="
+          margin-top: 15px;
+          padding: 12px;
+          background: #fff3cd;
+          border-radius: 6px;
+          font-size: 13px;
+          color: #856404;
+          text-align: center;
+          font-weight: 500;
+        ">
+          ⚡ <strong>${indicators.filter(i => i.severity === 'critical').length} critical security issues</strong> detected - proceed with extreme caution
+        </div>
+      ` : ''}
+    </div>
+  `;
+  
+  return bannerHTML;
+}
+
+// Insert trust indicators banner after site name
+const trustBanner = createTrustIndicatorsBanner();
+if (trustBanner) {
+  const siteNameElement = document.querySelector('.site-name');
+  siteNameElement.insertAdjacentHTML('afterend', trustBanner);
+}
 
 // Add risk score display with dynamic styling
 const riskDisplay = document.createElement('div');
@@ -222,6 +425,8 @@ if (siteData.phishing) {
       'flask-ml': 'Machine Learning Model',
       'local-heuristic': 'Local Heuristic Analysis',
       'quick-check': 'Quick Pattern Matching',
+      'whitelist': 'Verified Whitelist',
+      'ip-detection': 'IP Address Analysis',
       'error': 'Error During Analysis'
     };
     const sourceLabel = sourceLabels[phishing.source] || phishing.source;
